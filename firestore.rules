@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users: readable by any authenticated user (for friend search),
+    // writable only by the owner
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // Friend requests: sender or recipient can read/write
+    match /friendRequests/{requestId} {
+      allow read: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid ||
+         resource.data.toUid == request.auth.uid);
+      allow create: if request.auth != null &&
+        request.resource.data.fromUid == request.auth.uid;
+      allow delete: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid ||
+         resource.data.toUid == request.auth.uid);
+      allow update: if false;
+    }
+
+    // Check-ins: owner writes, friends can read
+    // Document ID format: {uid}_{YYYY-MM-DD}
+    match /checkins/{checkinId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        checkinId.matches(request.auth.uid + '_.*');
+    }
+  }
+}
