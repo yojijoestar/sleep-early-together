@@ -4,7 +4,13 @@
     "slug": "sleep-early-together",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.yuji.sleepearlytogether",
@@ -13,7 +19,14 @@
       }
     },
     "android": {
-      "package": "com.yuji.sleepearlytogether"
+      "package": "com.yuji.sleepearlytogether",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "scheme": "sleepearlytogethr",
     "extra": {
