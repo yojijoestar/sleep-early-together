@@ -24,7 +24,7 @@ export default {
   alreadyCheckedIn: '已打卡',
   sleepStatus: '今晚的睡眠',
   sleepStatusMorning: '昨晚的睡眠',
-  friendsStatus: '好友睡眠状态',
+  friendsStatus: '好友们的精神状态',
   noFriends: '还没有好友，快去添加吧！',
   statusEarly: '早睡了 ✨',
   statusLate: '又熬夜了 💀',
