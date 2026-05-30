@@ -7,11 +7,19 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.yourname.sleepearlytogethr"
+      "bundleIdentifier": "com.yuji.sleepearlytogether",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.yourname.sleepearlytogethr"
+      "package": "com.yuji.sleepearlytogether"
     },
-    "scheme": "sleepearlytogethr"
+    "scheme": "sleepearlytogethr",
+    "extra": {
+      "eas": {
+        "projectId": "7caf5b86-7ccf-4452-9c04-9ca12c57b883"
+      }
+    }
   }
 }

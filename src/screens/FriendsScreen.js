@@ -8,6 +8,7 @@ import {
   updateDoc, arrayUnion, arrayRemove, addDoc, deleteDoc,
 } from 'firebase/firestore';
 import * as Linking from 'expo-linking';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LanguageContext';
@@ -16,6 +17,7 @@ import LanguageToggle from '../components/LanguageToggle';
 export default function FriendsScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { t } = useLang();
+  const insets = useSafeAreaInsets();
 
   const [searchEmail, setSearchEmail] = useState('');
   const [searchResult, setSearchResult] = useState(null); // { uid, name, email } | 'not_found' | 'self'
@@ -156,7 +158,7 @@ export default function FriendsScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6c63ff" />}
     >
       {/* Header */}
