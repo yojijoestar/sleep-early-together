@@ -23,6 +23,7 @@ export default {
   checkedInLate: '你晚睡了 😅',
   alreadyCheckedIn: '已打卡',
   sleepStatus: '今晚的睡眠',
+  sleepStatusMorning: '昨晚的睡眠',
   friendsStatus: '好友睡眠状态',
   noFriends: '还没有好友，快去添加吧！',
   statusEarly: '早睡了 ✨',
@@ -31,6 +32,8 @@ export default {
   statusIncognito: '可能想隐瞒睡眠时间 🤔',
   sleptAt: '睡觉时间',
   midnightHint: '零点前睡觉即为早睡',
+  checkInAgainHint: '每天中午12点以后可以重新打卡',
+  lastNight: '昨晚',
 
   // Friends
   friends: '好友',

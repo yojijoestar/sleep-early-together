@@ -23,6 +23,7 @@ export default {
   checkedInLate: "You slept late 😅",
   alreadyCheckedIn: 'Already checked in',
   sleepStatus: "Tonight's Sleep",
+  sleepStatusMorning: "Last Night's Sleep",
   friendsStatus: "Friends' Sleep Status",
   noFriends: 'No friends yet — add some!',
   statusEarly: 'Slept early ✨',
@@ -31,6 +32,8 @@ export default {
   statusIncognito: 'Incognito last night 🤔',
   sleptAt: 'Slept at',
   midnightHint: 'Sleeping before midnight = sleeping early',
+  checkInAgainHint: 'Check-in resets at noon every day',
+  lastNight: 'Last night',
 
   // Friends
   friends: 'Friends',

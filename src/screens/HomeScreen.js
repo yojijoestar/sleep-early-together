@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, RefreshControl,
+  ScrollView, ActivityIndicator, RefreshControl, AppState,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  doc, getDoc, setDoc, collection, query, where, getDocs,
+  doc, getDoc, setDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +20,25 @@ function localDateString(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+// The "sleep period date" resets at noon each day.
+// Before noon → we're still in last night's window (yesterday's date).
+// From noon onwards → tonight's window (today's date).
+function sleepPeriodDate(now = new Date()) {
+  if (now.getHours() < 12) {
+    const prev = new Date(now);
+    prev.setDate(prev.getDate() - 1);
+    return localDateString(prev);
+  }
+  return localDateString(now);
+}
+
+// Yesterday's sleep period date (for the "last night" summary)
+function previousSleepPeriodDate(now = new Date()) {
+  const prev = new Date(now);
+  prev.setDate(prev.getDate() - 1);
+  return sleepPeriodDate(prev);
+}
+
 // 'early' | 'late' — compare stored date vs actual local date of timestamp
 function resolveStatus(checkin) {
   if (!checkin) return null;
@@ -26,11 +46,12 @@ function resolveStatus(checkin) {
   return localDateString(ts) === checkin.date ? 'early' : 'late';
 }
 
-// No check-in: 'unchecked' before 8am next morning, 'incognito' after
+// No check-in: 'unchecked' before noon next day (i.e. before reset), 'incognito' after
 function noCheckinStatus(targetDate) {
   const now = new Date();
   const [y, m, d] = targetDate.split('-').map(Number);
-  const cutoff = new Date(y, m - 1, d + 1, 8, 0, 0);
+  // Reset happens at noon the following day
+  const cutoff = new Date(y, m - 1, d + 1, 12, 0, 0);
   return now >= cutoff ? 'incognito' : 'unchecked';
 }
 
@@ -41,46 +62,79 @@ function formatTime(timestamp) {
 }
 
 export default function HomeScreen() {
-  const { user, profile, logOut } = useAuth();
+  const { user, profile } = useAuth();
   const { t } = useLang();
+  const insets = useSafeAreaInsets();
+
+  const [todayDate, setTodayDate] = useState(() => sleepPeriodDate());
   const [myCheckin, setMyCheckin] = useState(null);
-  const [friendsData, setFriendsData] = useState([]);
+  const [friendsData, setFriendsData] = useState([]);   // tonight
+  const [friendsYesterday, setFriendsYesterday] = useState([]); // last night
+  const [myYesterday, setMyYesterday] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const today = localDateString();
-
   const fetchData = useCallback(async () => {
     if (!user || !profile) return;
 
-    // Fetch own check-in
-    const myRef = doc(db, 'checkins', `${user.uid}_${today}`);
-    const mySnap = await getDoc(myRef);
-    setMyCheckin(mySnap.exists() ? mySnap.data() : null);
+    const currentPeriod = sleepPeriodDate();
+    const prevPeriod = previousSleepPeriodDate();
 
-    // Fetch friends' profiles + checkins
+    // Own check-ins
+    const [mySnap, myYestSnap] = await Promise.all([
+      getDoc(doc(db, 'checkins', `${user.uid}_${currentPeriod}`)),
+      getDoc(doc(db, 'checkins', `${user.uid}_${prevPeriod}`)),
+    ]);
+    setMyCheckin(mySnap.exists() ? mySnap.data() : null);
+    setMyYesterday(myYestSnap.exists() ? myYestSnap.data() : null);
+
+    // Friends
     if (profile.friends?.length > 0) {
       const friendProfiles = await Promise.all(
         profile.friends.map((fid) => getDoc(doc(db, 'users', fid)))
       );
-      const friendCheckins = await Promise.all(
-        profile.friends.map((fid) => getDoc(doc(db, 'checkins', `${fid}_${today}`)))
-      );
-      const data = profile.friends.map((fid, i) => ({
+      const [friendCheckins, friendYestCheckins] = await Promise.all([
+        Promise.all(profile.friends.map((fid) => getDoc(doc(db, 'checkins', `${fid}_${currentPeriod}`)))),
+        Promise.all(profile.friends.map((fid) => getDoc(doc(db, 'checkins', `${fid}_${prevPeriod}`)))),
+      ]);
+
+      const getName = (i) => friendProfiles[i].exists() ? friendProfiles[i].data().name : profile.friends[i];
+
+      setFriendsData(profile.friends.map((fid, i) => ({
         uid: fid,
-        name: friendProfiles[i].exists() ? friendProfiles[i].data().name : fid,
+        name: getName(i),
         checkin: friendCheckins[i].exists() ? friendCheckins[i].data() : null,
-      }));
-      setFriendsData(data);
+      })));
+      setFriendsYesterday(profile.friends.map((fid, i) => ({
+        uid: fid,
+        name: getName(i),
+        checkin: friendYestCheckins[i].exists() ? friendYestCheckins[i].data() : null,
+      })));
     } else {
       setFriendsData([]);
+      setFriendsYesterday([]);
     }
 
     setLoading(false);
-  }, [user, profile, today]);
+  }, [user, profile]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Re-fetch on foreground; reset period if noon has passed
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        const newPeriod = sleepPeriodDate();
+        if (newPeriod !== todayDate) {
+          setTodayDate(newPeriod);
+          setMyCheckin(null);
+        }
+        fetchData();
+      }
+    });
+    return () => sub.remove();
+  }, [todayDate, fetchData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -92,34 +146,18 @@ export default function HomeScreen() {
     if (myCheckin || checkingIn) return;
     setCheckingIn(true);
     const now = new Date();
-    const date = localDateString(now); // This is the "target" date (tonight = yesterday if past midnight)
-    // If it's after midnight (hour 0-3), the date is already "tomorrow", so we assign it to yesterday
-    // Actually: the user is checking in for the current night.
-    // Convention: the "night" belongs to the previous calendar date if it's between 00:00–04:00.
-    let sleepDate = date;
-    if (now.getHours() < 4) {
-      // After midnight but before 4am — belongs to previous night
-      const prev = new Date(now);
-      prev.setDate(prev.getDate() - 1);
-      sleepDate = localDateString(prev);
-    }
-    const checkinData = {
-      uid: user.uid,
-      date: sleepDate,
-      timestamp: now,
-    };
+    const sleepDate = sleepPeriodDate(now);
+    const checkinData = { uid: user.uid, date: sleepDate, timestamp: now };
     await setDoc(doc(db, 'checkins', `${user.uid}_${sleepDate}`), checkinData);
     setMyCheckin(checkinData);
     setCheckingIn(false);
   };
 
-  const myStatus = resolveStatus(myCheckin);
-
   const statusLabel = (checkin, targetDate) => {
     const s = resolveStatus(checkin);
     if (s === 'early') return t('statusEarly');
     if (s === 'late') return t('statusLate');
-    const ns = noCheckinStatus(targetDate || today);
+    const ns = noCheckinStatus(targetDate);
     return ns === 'incognito' ? t('statusIncognito') : t('statusUnchecked');
   };
 
@@ -129,6 +167,8 @@ export default function HomeScreen() {
     if (s === 'late') return '#f87171';
     return '#94a3b8';
   };
+
+  const prevPeriod = previousSleepPeriodDate();
 
   if (loading) {
     return (
@@ -141,25 +181,27 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6c63ff" />}
     >
       {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>{t('greeting')}, {profile?.name} 👋</Text>
-          <Text style={styles.date}>{today}</Text>
+          <Text style={styles.date}>{todayDate}</Text>
         </View>
         <LanguageToggle />
       </View>
 
-      {/* My status card */}
+      {/* Tonight's check-in card */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>{t('sleepStatus')}</Text>
+        <Text style={styles.cardTitle}>
+          {(new Date().getHours() < 12 ? t('sleepStatusMorning') : t('sleepStatus')).toUpperCase()}
+        </Text>
         {myCheckin ? (
           <>
             <Text style={[styles.statusBig, { color: statusColor(myCheckin) }]}>
-              {statusLabel(myCheckin, today)}
+              {statusLabel(myCheckin, todayDate)}
             </Text>
             <Text style={styles.timeLabel}>
               {t('sleptAt')}: {formatTime(myCheckin.timestamp)}
@@ -167,11 +209,10 @@ export default function HomeScreen() {
           </>
         ) : (
           <Text style={[styles.statusBig, { color: '#94a3b8' }]}>
-            {statusLabel(null, today)}
+            {statusLabel(null, todayDate)}
           </Text>
         )}
         <Text style={styles.hintText}>{t('midnightHint')}</Text>
-
         <TouchableOpacity
           style={[styles.checkInBtn, myCheckin && styles.checkInBtnDone]}
           onPress={handleCheckIn}
@@ -184,11 +225,13 @@ export default function HomeScreen() {
               </Text>
           }
         </TouchableOpacity>
+        {myCheckin && (
+          <Text style={styles.resetHint}>{t('checkInAgainHint')}</Text>
+        )}
       </View>
 
-      {/* Friends */}
-      <Text style={styles.sectionTitle}>{t('friendsStatus')}</Text>
-
+      {/* Tonight — friends */}
+      <Text style={styles.sectionTitle}>{t('friendsStatus').toUpperCase()}</Text>
       {friendsData.length === 0 ? (
         <Text style={styles.emptyText}>{t('noFriends')}</Text>
       ) : (
@@ -197,31 +240,55 @@ export default function HomeScreen() {
             <View style={styles.friendInfo}>
               <Text style={styles.friendName}>{f.name}</Text>
               {f.checkin && (
-                <Text style={styles.friendTime}>
-                  {t('sleptAt')}: {formatTime(f.checkin.timestamp)}
-                </Text>
+                <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(f.checkin.timestamp)}</Text>
               )}
             </View>
             <Text style={[styles.friendStatus, { color: statusColor(f.checkin) }]}>
-              {statusLabel(f.checkin, today)}
+              {statusLabel(f.checkin, todayDate)}
             </Text>
           </View>
         ))
       )}
+
+      {/* Last night summary */}
+      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('lastNight').toUpperCase()}</Text>
+      <View style={styles.friendCard}>
+        <View style={styles.friendInfo}>
+          <Text style={styles.friendName}>{profile?.name} {t('youLabel')}</Text>
+          {myYesterday && (
+            <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(myYesterday.timestamp)}</Text>
+          )}
+        </View>
+        <Text style={[styles.friendStatus, { color: statusColor(myYesterday) }]}>
+          {statusLabel(myYesterday, prevPeriod)}
+        </Text>
+      </View>
+      {friendsYesterday.map((f) => (
+        <View key={f.uid} style={styles.friendCard}>
+          <View style={styles.friendInfo}>
+            <Text style={styles.friendName}>{f.name}</Text>
+            {f.checkin && (
+              <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(f.checkin.timestamp)}</Text>
+            )}
+          </View>
+          <Text style={[styles.friendStatus, { color: statusColor(f.checkin) }]}>
+            {statusLabel(f.checkin, prevPeriod)}
+          </Text>
+        </View>
+      ))}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1a1a2e' },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { paddingHorizontal: 20, paddingBottom: 40 },
   center: { flex: 1, backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 24,
-    marginTop: 8,
   },
   greeting: { color: '#e0e0ff', fontSize: 18, fontWeight: '700' },
   date: { color: '#888', fontSize: 13, marginTop: 2 },
@@ -234,7 +301,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2a4a',
   },
-  cardTitle: { color: '#9d94ff', fontSize: 13, fontWeight: '600', marginBottom: 12, letterSpacing: 0.5 },
+  cardTitle: { color: '#9d94ff', fontSize: 11, fontWeight: '600', marginBottom: 12, letterSpacing: 0.5 },
   statusBig: { color: '#94a3b8', fontSize: 26, fontWeight: '800', marginBottom: 6 },
   timeLabel: { color: '#64748b', fontSize: 13, marginBottom: 6 },
   hintText: { color: '#3d3d6b', fontSize: 11, fontStyle: 'italic', textAlign: 'center', marginBottom: 14 },
@@ -248,8 +315,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkInBtnDone: { backgroundColor: '#2a2a4a' },
+  resetHint: { color: '#3d3d6b', fontSize: 11, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
   checkInBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  sectionTitle: { color: '#9d94ff', fontSize: 13, fontWeight: '600', marginBottom: 12, letterSpacing: 0.5 },
+  sectionTitle: { color: '#9d94ff', fontSize: 11, fontWeight: '600', marginBottom: 12, letterSpacing: 0.5 },
   emptyText: { color: '#64748b', textAlign: 'center', marginTop: 16 },
   friendCard: {
     backgroundColor: '#16213e',

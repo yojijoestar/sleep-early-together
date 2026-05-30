@@ -1,19 +1,20 @@
-// Replace these values with your Firebase project config
-// from https://console.firebase.google.com → Project Settings → Your apps → SDK setup
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: "AIzaSyC59u1prXl-FsDuadV_JT9YbfqXN-BPFbM",
+  authDomain: "sleep-early-tgt.firebaseapp.com",
+  projectId: "sleep-early-tgt",
+  storageBucket: "sleep-early-tgt.firebasestorage.app",
+  messagingSenderId: "125571531487",
+  appId: "1:125571531487:web:4adff63c648648d31b9f6a",
 };
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+});
 export const db = getFirestore(app);
