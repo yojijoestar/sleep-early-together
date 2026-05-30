@@ -17,7 +17,7 @@ export default {
   authError: '出错了，请重试',
 
   // Home
-  greeting: '晚上好',
+  greeting: '你来了亲爱的',
   checkIn: '睡觉打卡 🌙',
   checkedInEarly: '你早睡了！🌟',
   checkedInLate: '你晚睡了 😅',

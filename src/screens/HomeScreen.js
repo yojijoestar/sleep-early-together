@@ -250,32 +250,36 @@ export default function HomeScreen() {
         ))
       )}
 
-      {/* Last night summary */}
-      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('lastNight').toUpperCase()}</Text>
-      <View style={styles.friendCard}>
-        <View style={styles.friendInfo}>
-          <Text style={styles.friendName}>{profile?.name} {t('youLabel')}</Text>
-          {myYesterday && (
-            <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(myYesterday.timestamp)}</Text>
-          )}
-        </View>
-        <Text style={[styles.friendStatus, { color: statusColor(myYesterday) }]}>
-          {statusLabel(myYesterday, prevPeriod)}
-        </Text>
-      </View>
-      {friendsYesterday.map((f) => (
-        <View key={f.uid} style={styles.friendCard}>
-          <View style={styles.friendInfo}>
-            <Text style={styles.friendName}>{f.name}</Text>
-            {f.checkin && (
-              <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(f.checkin.timestamp)}</Text>
-            )}
+      {/* Last night summary — only visible after noon, when tonight's card has taken over */}
+      {new Date().getHours() >= 12 && (
+        <>
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('lastNight').toUpperCase()}</Text>
+          <View style={styles.friendCard}>
+            <View style={styles.friendInfo}>
+              <Text style={styles.friendName}>{profile?.name} {t('youLabel')}</Text>
+              {myYesterday && (
+                <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(myYesterday.timestamp)}</Text>
+              )}
+            </View>
+            <Text style={[styles.friendStatus, { color: statusColor(myYesterday) }]}>
+              {statusLabel(myYesterday, prevPeriod)}
+            </Text>
           </View>
-          <Text style={[styles.friendStatus, { color: statusColor(f.checkin) }]}>
-            {statusLabel(f.checkin, prevPeriod)}
-          </Text>
-        </View>
-      ))}
+          {friendsYesterday.map((f) => (
+            <View key={f.uid} style={styles.friendCard}>
+              <View style={styles.friendInfo}>
+                <Text style={styles.friendName}>{f.name}</Text>
+                {f.checkin && (
+                  <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(f.checkin.timestamp)}</Text>
+                )}
+              </View>
+              <Text style={[styles.friendStatus, { color: statusColor(f.checkin) }]}>
+                {statusLabel(f.checkin, prevPeriod)}
+              </Text>
+            </View>
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }

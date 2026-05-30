@@ -17,7 +17,7 @@ export default {
   authError: 'Something went wrong. Please try again.',
 
   // Home
-  greeting: 'Good evening',
+  greeting: 'Welcome',
   checkIn: 'Check In to Sleep 🌙',
   checkedInEarly: "You slept early! 🌟",
   checkedInLate: "You slept late 😅",
