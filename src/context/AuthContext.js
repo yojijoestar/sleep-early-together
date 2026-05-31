@@ -4,8 +4,14 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  deleteUser,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import {
+  doc, setDoc, getDoc, deleteDoc,
+  collection, query, where, getDocs, updateDoc, arrayRemove,
+} from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
 const AuthContext = createContext();
@@ -40,6 +46,48 @@ export function AuthProvider({ children }) {
 
   const logOut = () => signOut(auth);
 
+  // Permanently delete the account and all associated data.
+  // Requires the current password to reauthenticate (Firebase requirement).
+  const deleteAccount = async (password) => {
+    const current = auth.currentUser;
+    if (!current) throw new Error('not-authenticated');
+    const uid = current.uid;
+
+    // 1. Reauthenticate (also verifies the password before destroying anything)
+    const cred = EmailAuthProvider.credential(current.email, password);
+    await reauthenticateWithCredential(current, cred);
+
+    // 2. Delete my check-ins
+    const checkinSnap = await getDocs(
+      query(collection(db, 'checkins'), where('uid', '==', uid))
+    );
+    await Promise.all(checkinSnap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
+
+    // 3. Delete friend requests I sent or received
+    const [fromSnap, toSnap] = await Promise.all([
+      getDocs(query(collection(db, 'friendRequests'), where('fromUid', '==', uid))),
+      getDocs(query(collection(db, 'friendRequests'), where('toUid', '==', uid))),
+    ]);
+    await Promise.all(
+      [...fromSnap.docs, ...toSnap.docs].map((d) => deleteDoc(d.ref).catch(() => {}))
+    );
+
+    // 4. Remove myself from my friends' friend lists
+    if (profile?.friends?.length) {
+      await Promise.all(
+        profile.friends.map((fid) =>
+          updateDoc(doc(db, 'users', fid), { friends: arrayRemove(uid) }).catch(() => {})
+        )
+      );
+    }
+
+    // 5. Delete my own profile document
+    await deleteDoc(doc(db, 'users', uid));
+
+    // 6. Delete the auth account — triggers onAuthStateChanged(null) -> Login
+    await deleteUser(current);
+  };
+
   const refreshProfile = async () => {
     if (!user) return;
     const snap = await getDoc(doc(db, 'users', user.uid));
@@ -47,7 +95,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, logIn, logOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signUp, logIn, logOut, deleteAccount, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

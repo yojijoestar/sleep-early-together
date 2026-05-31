@@ -56,4 +56,18 @@ export default {
   home: 'Home',
   friendsTab: 'Friends',
   profile: 'Profile',
+
+  // Profile / Account
+  account: 'Account',
+  loggedInAs: 'Logged in as',
+  deleteAccount: 'Delete Account',
+  deleteAccountTitle: 'Delete account?',
+  deleteAccountWarning:
+    'This permanently deletes your account, check-ins, and friend connections. This cannot be undone.',
+  enterPasswordToConfirm: 'Enter your password to confirm',
+  cancel: 'Cancel',
+  confirmDelete: 'Delete Forever',
+  deleting: 'Deleting…',
+  wrongPassword: 'Incorrect password. Please try again.',
+  deleteFailed: 'Could not delete account. Please try again.',
 };

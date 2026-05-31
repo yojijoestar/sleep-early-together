@@ -11,6 +11,7 @@ import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import HomeScreen from '../screens/HomeScreen';
 import FriendsScreen from '../screens/FriendsScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,6 +42,11 @@ function MainTabs() {
         name="Friends"
         component={FriendsScreen}
         options={{ tabBarLabel: t('friendsTab'), tabBarIcon: ({ focused }) => <TabIcon name="Friends" focused={focused} /> }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ tabBarLabel: t('profile'), tabBarIcon: ({ focused }) => <TabIcon name="Profile" focused={focused} /> }}
       />
     </Tab.Navigator>
   );

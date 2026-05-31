@@ -56,4 +56,17 @@ export default {
   home: '主页',
   friendsTab: '好友',
   profile: '我',
+
+  // Profile / Account
+  account: '账户',
+  loggedInAs: '当前登录',
+  deleteAccount: '删除账户',
+  deleteAccountTitle: '删除账户？',
+  deleteAccountWarning: '此操作将永久删除你的账户、打卡记录和好友关系，且无法恢复。',
+  enterPasswordToConfirm: '请输入密码以确认',
+  cancel: '取消',
+  confirmDelete: '永久删除',
+  deleting: '删除中…',
+  wrongPassword: '密码错误，请重试',
+  deleteFailed: '删除失败，请重试',
 };

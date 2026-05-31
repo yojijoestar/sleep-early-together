@@ -14,9 +14,15 @@ service cloud.firestore {
         // as long as they're only changing the friends field and only adding their own uid
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friends']) &&
          request.resource.data.friends.hasAll(resource.data.friends) &&
-         request.resource.data.friends.removeAll(resource.data.friends).hasOnly([request.auth.uid]))
+         request.resource.data.friends.removeAll(resource.data.friends).hasOnly([request.auth.uid])) ||
+        // Anyone can remove themselves from another user's friends array (account deletion),
+        // changing only the friends field and only removing their own uid
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friends']) &&
+         resource.data.friends.hasAll(request.resource.data.friends) &&
+         resource.data.friends.removeAll(request.resource.data.friends).hasOnly([request.auth.uid]))
       );
-      allow delete: if false;
+      // Owner can delete their own account document
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     // Friend requests: sender or recipient can read/write
