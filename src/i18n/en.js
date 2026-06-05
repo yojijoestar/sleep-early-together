@@ -60,6 +60,13 @@ export default {
   // Profile / Account
   account: 'Account',
   loggedInAs: 'Logged in as',
+  editName: 'Edit name',
+  changeName: 'Change name',
+  newNamePlaceholder: 'Enter a new name',
+  save: 'Save',
+  nameUpdated: 'Name updated',
+  nameEmpty: 'Name cannot be empty',
+  updateNameFailed: 'Could not update name. Please try again.',
   deleteAccount: 'Delete Account',
   deleteAccountTitle: 'Delete account?',
   deleteAccountWarning:

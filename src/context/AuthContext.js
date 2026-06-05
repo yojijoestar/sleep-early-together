@@ -46,6 +46,16 @@ export function AuthProvider({ children }) {
 
   const logOut = () => signOut(auth);
 
+  // Update the user's display name in their profile document.
+  const updateName = async (newName) => {
+    const current = auth.currentUser;
+    if (!current) throw new Error('not-authenticated');
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error('empty-name');
+    await updateDoc(doc(db, 'users', current.uid), { name: trimmed });
+    setProfile((prev) => (prev ? { ...prev, name: trimmed } : prev));
+  };
+
   // Permanently delete the account and all associated data.
   // Requires the current password to reauthenticate (Firebase requirement).
   const deleteAccount = async (password) => {
@@ -95,7 +105,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, logIn, logOut, deleteAccount, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signUp, logIn, logOut, updateName, deleteAccount, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

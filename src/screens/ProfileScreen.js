@@ -9,7 +9,7 @@ import { useLang } from '../context/LanguageContext';
 import LanguageToggle from '../components/LanguageToggle';
 
 export default function ProfileScreen() {
-  const { profile, user, logOut, deleteAccount } = useAuth();
+  const { profile, user, logOut, updateName, deleteAccount } = useAuth();
   const { t } = useLang();
   const insets = useSafeAreaInsets();
 
@@ -17,6 +17,46 @@ export default function ProfileScreen() {
   const [password, setPassword] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+
+  // Name editing
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState('');
+
+  const startEditName = () => {
+    setNameInput(profile?.name || '');
+    setNameError('');
+    setEditingName(true);
+  };
+
+  const cancelEditName = () => {
+    if (savingName) return;
+    setEditingName(false);
+    setNameError('');
+  };
+
+  const handleSaveName = async () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed) {
+      setNameError(t('nameEmpty'));
+      return;
+    }
+    if (trimmed === profile?.name) {
+      setEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    setNameError('');
+    try {
+      await updateName(trimmed);
+      setEditingName(false);
+    } catch (e) {
+      setNameError(t('updateNameFailed'));
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const openModal = () => {
     setPassword('');
@@ -69,7 +109,51 @@ export default function ProfileScreen() {
             {(profile?.name || '🌙').trim().charAt(0).toUpperCase()}
           </Text>
         </View>
-        <Text style={styles.name}>{profile?.name}</Text>
+
+        {editingName ? (
+          <View style={styles.editNameWrap}>
+            <TextInput
+              style={styles.nameInput}
+              value={nameInput}
+              onChangeText={(v) => { setNameInput(v); setNameError(''); }}
+              placeholder={t('newNamePlaceholder')}
+              placeholderTextColor="#4a4a7a"
+              autoFocus
+              maxLength={40}
+              editable={!savingName}
+              onSubmitEditing={handleSaveName}
+              returnKeyType="done"
+            />
+            {nameError ? <Text style={styles.nameErrorText}>{nameError}</Text> : null}
+            <View style={styles.editNameActions}>
+              <TouchableOpacity
+                style={[styles.nameBtn, styles.nameCancelBtn]}
+                onPress={cancelEditName}
+                disabled={savingName}
+              >
+                <Text style={styles.nameCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.nameBtn, styles.nameSaveBtn, savingName && styles.nameBtnDisabled]}
+                onPress={handleSaveName}
+                disabled={savingName}
+              >
+                {savingName
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.nameSaveText}>{t('save')}</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.name}>{profile?.name}</Text>
+            <TouchableOpacity onPress={startEditName} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.editNameLink}>✏️ {t('editName')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
         <Text style={styles.email}>{t('loggedInAs')}: {user?.email}</Text>
       </View>
 
@@ -149,8 +233,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: 14,
   },
   avatarText: { color: '#fff', fontSize: 26, fontWeight: '800' },
-  name: { color: '#e0e0ff', fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  name: { color: '#e0e0ff', fontSize: 18, fontWeight: '700', marginBottom: 6 },
+  editNameLink: { color: '#9d94ff', fontSize: 13, fontWeight: '600', marginBottom: 10 },
   email: { color: '#64748b', fontSize: 13 },
+  editNameWrap: { width: '100%', marginBottom: 12 },
+  nameInput: {
+    backgroundColor: '#1a1a2e', borderRadius: 10, color: '#fff',
+    paddingHorizontal: 14, paddingVertical: 11, fontSize: 16, textAlign: 'center',
+    borderWidth: 1, borderColor: '#6c63ff',
+  },
+  nameErrorText: { color: '#f87171', fontSize: 12, marginTop: 8, textAlign: 'center' },
+  editNameActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  nameBtn: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
+  nameCancelBtn: { backgroundColor: '#2a2a4a' },
+  nameCancelText: { color: '#cfcfe8', fontWeight: '700', fontSize: 14 },
+  nameSaveBtn: { backgroundColor: '#6c63ff' },
+  nameSaveText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  nameBtnDisabled: { opacity: 0.5 },
   logoutBtn: {
     borderWidth: 1.5, borderColor: '#6c63ff', borderRadius: 12,
     paddingVertical: 14, alignItems: 'center', marginBottom: 14,

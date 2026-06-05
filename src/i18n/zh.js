@@ -60,6 +60,13 @@ export default {
   // Profile / Account
   account: '账户',
   loggedInAs: '当前登录',
+  editName: '修改名字',
+  changeName: '修改名字',
+  newNamePlaceholder: '输入新的名字',
+  save: '保存',
+  nameUpdated: '名字已更新',
+  nameEmpty: '名字不能为空',
+  updateNameFailed: '更新失败，请重试',
   deleteAccount: '删除账户',
   deleteAccountTitle: '删除账户？',
   deleteAccountWarning: '此操作将永久删除你的账户、打卡记录和好友关系，且无法恢复。',
