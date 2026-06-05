@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, RefreshControl, AppState,
+  ScrollView, ActivityIndicator, RefreshControl, AppState, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  doc, getDoc, setDoc,
+  doc, getDoc, setDoc, deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -73,6 +73,7 @@ export default function HomeScreen() {
   const [myYesterday, setMyYesterday] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -153,6 +154,32 @@ export default function HomeScreen() {
     setCheckingIn(false);
   };
 
+  const doCancelCheckIn = async () => {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      const dateStr = myCheckin?.date || sleepPeriodDate();
+      await deleteDoc(doc(db, 'checkins', `${user.uid}_${dateStr}`));
+      setMyCheckin(null);
+    } catch (e) {
+      Alert.alert(t('cancelCheckInTitle'), t('cancelCheckInFailed'));
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleCancelCheckIn = () => {
+    if (cancelling) return;
+    Alert.alert(
+      t('cancelCheckInTitle'),
+      t('cancelCheckInMsg'),
+      [
+        { text: t('cancelCheckInDismiss'), style: 'cancel' },
+        { text: t('cancelCheckInConfirm'), style: 'destructive', onPress: doCancelCheckIn },
+      ]
+    );
+  };
+
   const statusLabel = (checkin, targetDate) => {
     const s = resolveStatus(checkin);
     if (s === 'early') return t('statusEarly');
@@ -226,7 +253,19 @@ export default function HomeScreen() {
           }
         </TouchableOpacity>
         {myCheckin && (
-          <Text style={styles.resetHint}>{t('checkInAgainHint')}</Text>
+          <>
+            <TouchableOpacity
+              onPress={handleCancelCheckIn}
+              disabled={cancelling}
+              hitSlop={{ top: 10, bottom: 10, left: 20, right: 20 }}
+            >
+              {cancelling
+                ? <ActivityIndicator color="#9d94ff" size="small" style={{ marginTop: 12 }} />
+                : <Text style={styles.undoLink}>{t('undoCheckIn')}</Text>
+              }
+            </TouchableOpacity>
+            <Text style={styles.resetHint}>{t('checkInAgainHint')}</Text>
+          </>
         )}
       </View>
 
@@ -319,6 +358,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkInBtnDone: { backgroundColor: '#2a2a4a' },
+  undoLink: { color: '#9d94ff', fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: 14 },
   resetHint: { color: '#3d3d6b', fontSize: 11, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
   checkInBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   sectionTitle: { color: '#9d94ff', fontSize: 11, fontWeight: '600', marginBottom: 12, letterSpacing: 0.5 },

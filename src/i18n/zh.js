@@ -34,6 +34,12 @@ export default {
   midnightHint: '零点前睡觉即为早睡',
   checkInAgainHint: '每天中午12点以后可以重新打卡',
   lastNight: '昨晚',
+  undoCheckIn: '其实还没睡 打扰了，撤销',
+  cancelCheckInTitle: '撤销打卡？',
+  cancelCheckInMsg: '将删除今晚的打卡，你可以重新打卡。',
+  cancelCheckInConfirm: '确认撤销',
+  cancelCheckInDismiss: '算了',
+  cancelCheckInFailed: '撤销失败，请重试',
 
   // Friends
   friends: '好友',

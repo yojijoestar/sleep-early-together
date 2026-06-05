@@ -34,6 +34,12 @@ export default {
   midnightHint: 'Sleeping before midnight = sleeping early',
   checkInAgainHint: 'Check-in resets at noon every day',
   lastNight: 'Last night',
+  undoCheckIn: 'Checked in by accident? Cancel it',
+  cancelCheckInTitle: 'Cancel check-in?',
+  cancelCheckInMsg: "This removes tonight's check-in. You can check in again.",
+  cancelCheckInConfirm: 'Yes, cancel',
+  cancelCheckInDismiss: 'Never mind',
+  cancelCheckInFailed: 'Could not cancel. Please try again.',
 
   // Friends
   friends: 'Friends',
