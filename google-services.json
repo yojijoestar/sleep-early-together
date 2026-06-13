@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "125571531487",
+    "project_id": "sleep-early-tgt",
+    "storage_bucket": "sleep-early-tgt.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:125571531487:android:7387a70fcb62952a1b9f6a",
+        "android_client_info": {
+          "package_name": "com.yuji.sleepearlytogether"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxdr9GUSiKsSYDUK42qtvpJabOqHeS_B4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -20,6 +20,7 @@
     },
     "android": {
       "package": "com.yuji.sleepearlytogether",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"

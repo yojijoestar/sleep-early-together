@@ -73,3 +73,8 @@ node_modules/
 
 # Bundle export output
 dist/
+
+# Firebase service-account keys (FCM push) — never commit these
+*-firebase-adminsdk-*.json
+fcm-*.json
+service-account*.json
