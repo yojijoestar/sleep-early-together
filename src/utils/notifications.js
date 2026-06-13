@@ -76,12 +76,19 @@ export async function notifyFriendRequest(toUid, fromName) {
     `${fromName} ${t(r.lang, 'pushFriendRequestBody')}`, { type: 'friendRequest' });
 }
 
-export async function notifyPoke(toUid, fromName) {
+const REACTION_PUSH = {
+  poke:     { emoji: '👉', who: 'pokedYou',    msg: 'pokeMessage' },
+  congrats: { emoji: '🎉', who: 'congratsYou', msg: 'congratsMessage' },
+  tease:    { emoji: '😏', who: 'teasedYou',   msg: 'teaseMessage' },
+};
+
+export async function notifyReaction(toUid, fromName, type) {
   const r = await getRecipient(toUid);
   if (!r) return;
-  // Title says who poked; body shows the actual poke message
-  await push(r.token, `👉 ${fromName} ${t(r.lang, 'pokedYou')}`,
-    t(r.lang, 'pokeMessage'), { type: 'poke' });
+  const m = REACTION_PUSH[type] || REACTION_PUSH.poke;
+  // Title says who reacted; body shows the actual message
+  await push(r.token, `${m.emoji} ${fromName} ${t(r.lang, m.who)}`,
+    t(r.lang, m.msg), { type });
 }
 
 export async function notifyResponse(toUid, fromName, responseKey) {

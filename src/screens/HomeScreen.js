@@ -11,7 +11,7 @@ import {
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LanguageContext';
-import { notifyPoke, notifyResponse } from '../utils/notifications';
+import { notifyReaction, notifyResponse } from '../utils/notifications';
 import LanguageToggle from '../components/LanguageToggle';
 
 // Returns 'YYYY-MM-DD' in local time
@@ -62,6 +62,13 @@ function formatTime(timestamp) {
   const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+
+// Reaction config: button label/emoji/style, sent-confirmation title, and message
+const REACTION_META = {
+  poke:     { emoji: '👉', btn: 'poke',        btnStyle: null,            sentTitle: 'pokeSentTitle',     msg: 'pokeMessage' },
+  congrats: { emoji: '🎉', btn: 'congratsBtn', btnStyle: 'reactCongrats', sentTitle: 'congratsSentTitle', msg: 'congratsMessage' },
+  tease:    { emoji: '😏', btn: 'teaseBtn',    btnStyle: 'reactTease',    sentTitle: 'teaseSentTitle',    msg: 'teaseMessage' },
+};
 
 export default function HomeScreen() {
   const { user, profile } = useAuth();
@@ -194,8 +201,10 @@ export default function HomeScreen() {
     );
   };
 
-  // Poke a friend who hasn't checked in yet (multiple pokes allowed)
-  const handlePoke = async (friend) => {
+  // Send a reaction to a friend based on their status:
+  //   'poke' (not checked in) · 'congrats' (slept early) · 'tease' (slept late)
+  // All allowed multiple times.
+  const sendReaction = async (friend, type) => {
     if (pokeBusy) return;
     setPokeBusy(friend.uid);
     try {
@@ -203,17 +212,37 @@ export default function HomeScreen() {
         fromUid: user.uid,
         fromName: profile?.name || '',
         toUid: friend.uid,
-        type: 'poke',
+        type,
         createdAt: new Date(),
       });
-      notifyPoke(friend.uid, profile?.name || '');
+      notifyReaction(friend.uid, profile?.name || '', type);
+      const meta = REACTION_META[type];
       // Show the sender exactly what the friend will receive
-      Alert.alert(`${t('pokeSentTitle')} ${friend.name}`, t('pokeMessage'));
+      Alert.alert(`${t(meta.sentTitle)} ${friend.name}`, t(meta.msg));
     } catch (e) {
       Alert.alert(t('poke'), t('pokeFailed'));
     } finally {
       setPokeBusy(null);
     }
+  };
+
+  // Renders the right reaction button for a friend based on their check-in status
+  const reactionButton = (f) => {
+    const s = resolveStatus(f.checkin); // null | 'early' | 'late'
+    const type = s === 'early' ? 'congrats' : s === 'late' ? 'tease' : 'poke';
+    const meta = REACTION_META[type];
+    return (
+      <TouchableOpacity
+        style={[styles.pokeBtn, meta.btnStyle && styles[meta.btnStyle]]}
+        onPress={() => sendReaction(f, type)}
+        disabled={pokeBusy === f.uid}
+      >
+        {pokeBusy === f.uid
+          ? <ActivityIndicator color="#fff" size="small" />
+          : <Text style={styles.pokeBtnText}>{meta.emoji} {t(meta.btn)}</Text>
+        }
+      </TouchableOpacity>
+    );
   };
 
   // Delete a set of received poke/response docs
@@ -262,12 +291,16 @@ export default function HomeScreen() {
 
   // Split received items into pokes (nudges) and responses (replies),
   // each deduped to distinct senders.
-  const incomingPokes = pokes.filter((p) => p.type !== 'response');
+  const incomingPokes = pokes.filter((p) => !p.type || p.type === 'poke');
   const incomingResponses = pokes.filter((p) => p.type === 'response');
+  const incomingCongrats = pokes.filter((p) => p.type === 'congrats');
+  const incomingTease = pokes.filter((p) => p.type === 'tease');
   const distinctNames = (arr) => [
     ...new Map(arr.map((p) => [p.fromUid, p.fromName || ''])).values(),
   ].filter(Boolean);
   const pokerNames = distinctNames(incomingPokes);
+  const congratsNames = distinctNames(incomingCongrats);
+  const teaseNames = distinctNames(incomingTease);
   // Distinct responders, keeping their latest reply (which may differ per person)
   const dedupedResponses = [...new Map(incomingResponses.map((r) => [r.fromUid, r])).values()];
   const nameSep = lang === 'zh' ? '、' : ', ';
@@ -345,6 +378,42 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* Congrats received — friends cheering my early sleep */}
+      {incomingCongrats.length > 0 && (
+        <View style={[styles.pokeBanner, styles.congratsBanner]}>
+          <View style={styles.pokeBannerHead}>
+            <Text style={styles.pokeBannerTitle}>
+              🎉 {congratsNames.join(nameSep)} {t('congratsYou')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => dismissDocs(incomingCongrats)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.pokeBannerClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.pokeBannerMsg}>{t('congratsMessage')}</Text>
+        </View>
+      )}
+
+      {/* Tease received — friends ribbing my late night */}
+      {incomingTease.length > 0 && (
+        <View style={[styles.pokeBanner, styles.teaseBanner]}>
+          <View style={styles.pokeBannerHead}>
+            <Text style={styles.pokeBannerTitle}>
+              😏 {teaseNames.join(nameSep)} {t('teasedYou')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => dismissDocs(incomingTease)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.pokeBannerClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.pokeBannerMsg}>{t('teaseMessage')}</Text>
+        </View>
+      )}
+
       {/* Tonight's check-in card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
@@ -411,18 +480,7 @@ export default function HomeScreen() {
               <Text style={[styles.friendStatus, { color: statusColor(f.checkin) }]}>
                 {statusLabel(f.checkin, todayDate)}
               </Text>
-              {!resolveStatus(f.checkin) && (
-                <TouchableOpacity
-                  style={styles.pokeBtn}
-                  onPress={() => handlePoke(f)}
-                  disabled={pokeBusy === f.uid}
-                >
-                  {pokeBusy === f.uid
-                    ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={styles.pokeBtnText}>👉 {t('poke')}</Text>
-                  }
-                </TouchableOpacity>
-              )}
+              {reactionButton(f)}
             </View>
           </View>
         ))
@@ -527,6 +585,8 @@ const styles = StyleSheet.create({
   },
   pokeBtnDone: { backgroundColor: '#2a2a4a' },
   pokeBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  reactCongrats: { backgroundColor: '#16a34a' },
+  reactTease: { backgroundColor: '#d97706' },
   pokeBanner: {
     backgroundColor: '#241f45',
     borderRadius: 14,
@@ -536,6 +596,8 @@ const styles = StyleSheet.create({
     borderColor: '#6c63ff',
   },
   responseBanner: { backgroundColor: '#1c2940', borderColor: '#4ade80' },
+  congratsBanner: { backgroundColor: '#16271e', borderColor: '#22c55e' },
+  teaseBanner: { backgroundColor: '#2a2114', borderColor: '#f59e0b' },
   pokeBannerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   pokeBannerTitle: { flex: 1, color: '#e0e0ff', fontWeight: '700', fontSize: 15 },
   pokeBannerClose: { color: '#9d94ff', fontSize: 16, fontWeight: '700', paddingLeft: 10 },
