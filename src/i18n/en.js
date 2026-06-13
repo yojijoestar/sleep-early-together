@@ -50,7 +50,9 @@ export default {
   respond: 'Respond',
   dismiss: 'Dismiss',
   repliedYou: 'replied',
+  repliesHeading: 'Replies',
   responseMessage: "Okay okay, going to sleep now! 😴",
+  responseMessage2: 'Welp welp 🌙',
   responseSentTitle: 'Reply sent! 💬',
 
   // Friends

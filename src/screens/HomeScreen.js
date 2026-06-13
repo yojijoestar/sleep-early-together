@@ -221,8 +221,8 @@ export default function HomeScreen() {
     await Promise.all(docs.map((d) => deleteDoc(doc(db, 'pokes', d.id)).catch(() => {})));
   };
 
-  // Reply to everyone who poked me, confirm to the responder, then clear their pokes
-  const handleRespond = async (incoming) => {
+  // Reply to everyone who poked me with the chosen message, then clear their pokes
+  const handleRespond = async (incoming, responseKey) => {
     const pokerUids = [...new Set(incoming.map((p) => p.fromUid))];
     try {
       await Promise.all(pokerUids.map((uid) => addDoc(collection(db, 'pokes'), {
@@ -230,9 +230,10 @@ export default function HomeScreen() {
         fromName: profile?.name || '',
         toUid: uid,
         type: 'response',
+        responseKey,
         createdAt: new Date(),
       })));
-      Alert.alert(t('responseSentTitle'), t('responseMessage'));
+      Alert.alert(t('responseSentTitle'), t(responseKey));
       await dismissDocs(incoming);
     } catch (e) {
       Alert.alert(t('respond'), t('pokeFailed'));
@@ -264,7 +265,8 @@ export default function HomeScreen() {
     ...new Map(arr.map((p) => [p.fromUid, p.fromName || ''])).values(),
   ].filter(Boolean);
   const pokerNames = distinctNames(incomingPokes);
-  const responderNames = distinctNames(incomingResponses);
+  // Distinct responders, keeping their latest reply (which may differ per person)
+  const dedupedResponses = [...new Map(incomingResponses.map((r) => [r.fromUid, r])).values()];
   const nameSep = lang === 'zh' ? '、' : ', ';
 
   if (loading) {
@@ -305,8 +307,17 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.pokeBannerMsg}>{t('pokeMessage')}</Text>
-          <TouchableOpacity style={styles.respondBtn} onPress={() => handleRespond(incomingPokes)}>
+          <TouchableOpacity
+            style={styles.respondBtn}
+            onPress={() => handleRespond(incomingPokes, 'responseMessage')}
+          >
             <Text style={styles.respondBtnText}>{t('responseMessage')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.respondBtn, styles.respondBtnAlt]}
+            onPress={() => handleRespond(incomingPokes, 'responseMessage2')}
+          >
+            <Text style={[styles.respondBtnText, styles.respondBtnAltText]}>{t('responseMessage2')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -315,9 +326,7 @@ export default function HomeScreen() {
       {incomingResponses.length > 0 && (
         <View style={[styles.pokeBanner, styles.responseBanner]}>
           <View style={styles.pokeBannerHead}>
-            <Text style={styles.pokeBannerTitle}>
-              💬 {responderNames.join(nameSep)} {t('repliedYou')}
-            </Text>
+            <Text style={styles.pokeBannerTitle}>💬 {t('repliesHeading')}</Text>
             <TouchableOpacity
               onPress={() => dismissDocs(incomingResponses)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -325,7 +334,11 @@ export default function HomeScreen() {
               <Text style={styles.pokeBannerClose}>✕</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.pokeBannerMsg}>{t('responseMessage')}</Text>
+          {dedupedResponses.map((r) => (
+            <Text key={r.fromUid} style={styles.responseLine}>
+              {r.fromName}: {t(r.responseKey || 'responseMessage')}
+            </Text>
+          ))}
         </View>
       )}
 
@@ -532,5 +545,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
     alignItems: 'center',
   },
-  respondBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  respondBtnText: { color: '#fff', fontWeight: '700', fontSize: 14, textAlign: 'center' },
+  respondBtnAlt: { backgroundColor: '#2a2a4a', marginTop: 10 },
+  respondBtnAltText: { color: '#cfcfe8' },
+  responseLine: { color: '#b6e3c4', fontSize: 14, marginTop: 6, lineHeight: 20 },
 });

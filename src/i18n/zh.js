@@ -50,7 +50,9 @@ export default {
   respond: '回应',
   dismiss: '关闭',
   repliedYou: '回应了你',
+  repliesHeading: '回应',
   responseMessage: '好啦好啦，这就去睡！😴',
+  responseMessage2: '等一下啦就是不想睡啦今天修仙啦',
   responseSentTitle: '回应已发送！💬',
 
   // Friends
