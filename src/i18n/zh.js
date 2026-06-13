@@ -61,12 +61,16 @@ export default {
   repliesHeading: '回应',
   responseMessage: '好啦好啦，尽快会睡的啦！😴',
   responseMessage2: '等一下啦就是不想睡啦今天修仙啦',
+  congratsReply1: '叉腰 嘿嘿',
+  congratsReply2: '一起早睡哦！😉',
+  teaseReply1: '知道啦知道啦 😅',
+  teaseReply2: '修仙使我快乐 别管我 🧘',
   responseSentTitle: '回应已发送！💬',
 
   // Push notifications
   pushFriendRequestTitle: '👋 新的好友申请',
   pushFriendRequestBody: '想和你做朋友',
-  pushReplyTitle: '回应了你的戳一戳 💬',
+  pushReplyTitle: '回应了你 💬',
 
   // Friends
   friends: '好友',

@@ -393,6 +393,18 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.pokeBannerMsg}>{t('congratsMessage')}</Text>
+          <TouchableOpacity
+            style={styles.respondBtn}
+            onPress={() => handleRespond(incomingCongrats, 'congratsReply1')}
+          >
+            <Text style={styles.respondBtnText}>{t('congratsReply1')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.respondBtn, styles.respondBtnAlt]}
+            onPress={() => handleRespond(incomingCongrats, 'congratsReply2')}
+          >
+            <Text style={[styles.respondBtnText, styles.respondBtnAltText]}>{t('congratsReply2')}</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -411,6 +423,18 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.pokeBannerMsg}>{t('teaseMessage')}</Text>
+          <TouchableOpacity
+            style={styles.respondBtn}
+            onPress={() => handleRespond(incomingTease, 'teaseReply1')}
+          >
+            <Text style={styles.respondBtnText}>{t('teaseReply1')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.respondBtn, styles.respondBtnAlt]}
+            onPress={() => handleRespond(incomingTease, 'teaseReply2')}
+          >
+            <Text style={[styles.respondBtnText, styles.respondBtnAltText]}>{t('teaseReply2')}</Text>
+          </TouchableOpacity>
         </View>
       )}
 

@@ -61,12 +61,16 @@ export default {
   repliesHeading: 'Replies',
   responseMessage: "Okay okay, going to sleep soon! 😴",
   responseMessage2: 'Welp welp 🌙',
+  congratsReply1: 'Thanks! 🙏',
+  congratsReply2: 'You should sleep early too! 😉',
+  teaseReply1: 'I know, I know 😅',
+  teaseReply2: 'Cultivating tonight, leave me be 🧘',
   responseSentTitle: 'Reply sent! 💬',
 
   // Push notifications
   pushFriendRequestTitle: '👋 New friend request',
   pushFriendRequestBody: 'wants to be friends',
-  pushReplyTitle: 'replied to your poke 💬',
+  pushReplyTitle: 'replied 💬',
 
   // Friends
   friends: 'Friends',
