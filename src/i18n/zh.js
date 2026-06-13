@@ -55,6 +55,11 @@ export default {
   responseMessage2: '等一下啦就是不想睡啦今天修仙啦',
   responseSentTitle: '回应已发送！💬',
 
+  // Push notifications
+  pushFriendRequestTitle: '👋 新的好友申请',
+  pushFriendRequestBody: '想和你做朋友',
+  pushReplyTitle: '回应了你的戳一戳 💬',
+
   // Friends
   friends: '好友',
   addFriend: '添加好友',

@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LanguageContext';
+import { notifyFriendRequest } from '../utils/notifications';
 import LanguageToggle from '../components/LanguageToggle';
 
 export default function FriendsScreen() {
@@ -125,6 +126,7 @@ export default function FriendsScreen() {
       status: 'pending',
       createdAt: new Date(),
     });
+    notifyFriendRequest(searchResult.uid, profile?.name || '');
     setSearchMsg(t('requestSent'));
     setSearchResult(null);
     setSearchEmail('');

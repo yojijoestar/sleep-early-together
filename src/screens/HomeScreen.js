@@ -11,6 +11,7 @@ import {
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LanguageContext';
+import { notifyPoke, notifyResponse } from '../utils/notifications';
 import LanguageToggle from '../components/LanguageToggle';
 
 // Returns 'YYYY-MM-DD' in local time
@@ -205,6 +206,7 @@ export default function HomeScreen() {
         type: 'poke',
         createdAt: new Date(),
       });
+      notifyPoke(friend.uid, profile?.name || '');
       // Show the sender exactly what the friend will receive
       Alert.alert(`${t('pokeSentTitle')} ${friend.name}`, t('pokeMessage'));
     } catch (e) {
@@ -233,6 +235,7 @@ export default function HomeScreen() {
         responseKey,
         createdAt: new Date(),
       })));
+      pokerUids.forEach((uid) => notifyResponse(uid, profile?.name || '', responseKey));
       Alert.alert(t('responseSentTitle'), t(responseKey));
       await dismissDocs(incoming);
     } catch (e) {

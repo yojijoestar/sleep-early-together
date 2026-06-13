@@ -13,6 +13,7 @@ import {
   collection, query, where, getDocs, updateDoc, arrayRemove,
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
 const AuthContext = createContext();
 
@@ -27,6 +28,12 @@ export function AuthProvider({ children }) {
       setUser(firebaseUser);
       if (unsubProfile) { unsubProfile(); unsubProfile = null; }
       if (firebaseUser) {
+        // Register this device for push notifications and save the token
+        registerForPushNotificationsAsync().then((token) => {
+          if (token) {
+            setDoc(doc(db, 'users', firebaseUser.uid), { pushToken: token }, { merge: true }).catch(() => {});
+          }
+        });
         // Live profile so the friends array (and name) stay in sync everywhere
         unsubProfile = onSnapshot(
           doc(db, 'users', firebaseUser.uid),

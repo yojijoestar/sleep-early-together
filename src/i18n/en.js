@@ -55,6 +55,11 @@ export default {
   responseMessage2: 'Welp welp 🌙',
   responseSentTitle: 'Reply sent! 💬',
 
+  // Push notifications
+  pushFriendRequestTitle: '👋 New friend request',
+  pushFriendRequestBody: 'wants to be friends',
+  pushReplyTitle: 'replied to your poke 💬',
+
   // Friends
   friends: 'Friends',
   addFriend: 'Add Friend',
