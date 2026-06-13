@@ -9,7 +9,7 @@ import {
   EmailAuthProvider,
 } from 'firebase/auth';
 import {
-  doc, setDoc, getDoc, deleteDoc,
+  doc, setDoc, getDoc, deleteDoc, onSnapshot,
   collection, query, where, getDocs, updateDoc, arrayRemove,
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
@@ -22,17 +22,23 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubProfile = null;
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
+      if (unsubProfile) { unsubProfile(); unsubProfile = null; }
       if (firebaseUser) {
-        const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
-        setProfile(snap.exists() ? snap.data() : null);
+        // Live profile so the friends array (and name) stay in sync everywhere
+        unsubProfile = onSnapshot(
+          doc(db, 'users', firebaseUser.uid),
+          (snap) => { setProfile(snap.exists() ? snap.data() : null); setLoading(false); },
+          () => setLoading(false),
+        );
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return unsub;
+    return () => { if (unsubProfile) unsubProfile(); unsub(); };
   }, []);
 
   const signUp = async (email, password, name) => {

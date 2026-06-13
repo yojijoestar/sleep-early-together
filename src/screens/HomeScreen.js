@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, RefreshControl, AppState, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  doc, getDoc, setDoc, deleteDoc,
+  doc, setDoc, deleteDoc,
+  collection, query, where, addDoc, onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -63,7 +64,7 @@ function formatTime(timestamp) {
 
 export default function HomeScreen() {
   const { user, profile } = useAuth();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const insets = useSafeAreaInsets();
 
   const [todayDate, setTodayDate] = useState(() => sleepPeriodDate());
@@ -75,72 +76,84 @@ export default function HomeScreen() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pokes, setPokes] = useState([]);              // pokes/responses received by me
+  const [pokeBusy, setPokeBusy] = useState(null);      // uid currently being poked
 
-  const fetchData = useCallback(async () => {
+  // Live data: real-time listeners so friends' check-ins and incoming pokes
+  // update instantly, without needing to reopen or pull-to-refresh.
+  useEffect(() => {
     if (!user || !profile) return;
 
     const currentPeriod = sleepPeriodDate();
     const prevPeriod = previousSleepPeriodDate();
+    const friends = profile.friends || [];
+    const unsubs = [];
 
-    // Own check-ins
-    const [mySnap, myYestSnap] = await Promise.all([
-      getDoc(doc(db, 'checkins', `${user.uid}_${currentPeriod}`)),
-      getDoc(doc(db, 'checkins', `${user.uid}_${prevPeriod}`)),
-    ]);
-    setMyCheckin(mySnap.exists() ? mySnap.data() : null);
-    setMyYesterday(myYestSnap.exists() ? myYestSnap.data() : null);
+    // Loading gate: clear once the first batch arrives (with a safety timeout)
+    const expected = new Set(['mine', ...friends.flatMap((f) => [`p:${f}`, `c:${f}`])]);
+    const received = new Set();
+    const ready = (key) => {
+      received.add(key);
+      if (received.size >= expected.size) setLoading(false);
+    };
+    const safety = setTimeout(() => setLoading(false), 4000);
 
-    // Friends
-    if (profile.friends?.length > 0) {
-      const friendProfiles = await Promise.all(
-        profile.friends.map((fid) => getDoc(doc(db, 'users', fid)))
-      );
-      const [friendCheckins, friendYestCheckins] = await Promise.all([
-        Promise.all(profile.friends.map((fid) => getDoc(doc(db, 'checkins', `${fid}_${currentPeriod}`)))),
-        Promise.all(profile.friends.map((fid) => getDoc(doc(db, 'checkins', `${fid}_${prevPeriod}`)))),
-      ]);
+    // My check-ins (live)
+    unsubs.push(onSnapshot(
+      doc(db, 'checkins', `${user.uid}_${currentPeriod}`),
+      (s) => { setMyCheckin(s.exists() ? s.data() : null); ready('mine'); },
+      () => ready('mine'),
+    ));
+    unsubs.push(onSnapshot(
+      doc(db, 'checkins', `${user.uid}_${prevPeriod}`),
+      (s) => setMyYesterday(s.exists() ? s.data() : null),
+    ));
 
-      const getName = (i) => friendProfiles[i].exists() ? friendProfiles[i].data().name : profile.friends[i];
+    // Pokes received by me (live) — non-critical
+    unsubs.push(onSnapshot(
+      query(collection(db, 'pokes'), where('toUid', '==', user.uid)),
+      (snap) => setPokes(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      () => setPokes([]),
+    ));
 
-      setFriendsData(profile.friends.map((fid, i) => ({
-        uid: fid,
-        name: getName(i),
-        checkin: friendCheckins[i].exists() ? friendCheckins[i].data() : null,
-      })));
-      setFriendsYesterday(profile.friends.map((fid, i) => ({
-        uid: fid,
-        name: getName(i),
-        checkin: friendYestCheckins[i].exists() ? friendYestCheckins[i].data() : null,
-      })));
-    } else {
-      setFriendsData([]);
-      setFriendsYesterday([]);
-    }
+    // Friends: live names + current/previous check-ins
+    const fmap = {};
+    friends.forEach((fid) => { fmap[fid] = { uid: fid, name: fid, checkin: null, yCheckin: null }; });
+    const flush = () => {
+      setFriendsData(friends.map((fid) => ({ uid: fid, name: fmap[fid].name, checkin: fmap[fid].checkin })));
+      setFriendsYesterday(friends.map((fid) => ({ uid: fid, name: fmap[fid].name, checkin: fmap[fid].yCheckin })));
+    };
+    if (friends.length === 0) { setFriendsData([]); setFriendsYesterday([]); }
+    friends.forEach((fid) => {
+      unsubs.push(onSnapshot(doc(db, 'users', fid),
+        (s) => { if (s.exists()) fmap[fid].name = s.data().name; flush(); ready(`p:${fid}`); },
+        () => ready(`p:${fid}`)));
+      unsubs.push(onSnapshot(doc(db, 'checkins', `${fid}_${currentPeriod}`),
+        (s) => { fmap[fid].checkin = s.exists() ? s.data() : null; flush(); ready(`c:${fid}`); },
+        () => ready(`c:${fid}`)));
+      unsubs.push(onSnapshot(doc(db, 'checkins', `${fid}_${prevPeriod}`),
+        (s) => { fmap[fid].yCheckin = s.exists() ? s.data() : null; flush(); }));
+    });
 
-    setLoading(false);
-  }, [user, profile]);
+    return () => { clearTimeout(safety); unsubs.forEach((u) => u()); };
+  }, [user, profile, todayDate]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Re-fetch on foreground; reset period if noon has passed
+  // Reset the sleep period at noon when the app returns to foreground
+  // (listeners re-subscribe automatically when todayDate changes).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         const newPeriod = sleepPeriodDate();
-        if (newPeriod !== todayDate) {
-          setTodayDate(newPeriod);
-          setMyCheckin(null);
-        }
-        fetchData();
+        if (newPeriod !== todayDate) setTodayDate(newPeriod);
       }
     });
     return () => sub.remove();
-  }, [todayDate, fetchData]);
+  }, [todayDate]);
 
-  const onRefresh = async () => {
+  // Data is already live; pull-to-refresh just gives a brief spinner.
+  const onRefresh = () => {
     setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
+    setTimeout(() => setRefreshing(false), 500);
   };
 
   const handleCheckIn = async () => {
@@ -180,6 +193,52 @@ export default function HomeScreen() {
     );
   };
 
+  // Poke a friend who hasn't checked in yet (multiple pokes allowed)
+  const handlePoke = async (friend) => {
+    if (pokeBusy) return;
+    setPokeBusy(friend.uid);
+    try {
+      await addDoc(collection(db, 'pokes'), {
+        fromUid: user.uid,
+        fromName: profile?.name || '',
+        toUid: friend.uid,
+        type: 'poke',
+        createdAt: new Date(),
+      });
+      // Show the sender exactly what the friend will receive
+      Alert.alert(`${t('pokeSentTitle')} ${friend.name}`, t('pokeMessage'));
+    } catch (e) {
+      Alert.alert(t('poke'), t('pokeFailed'));
+    } finally {
+      setPokeBusy(null);
+    }
+  };
+
+  // Delete a set of received poke/response docs
+  const dismissDocs = async (docs) => {
+    const ids = new Set(docs.map((d) => d.id));
+    setPokes((prev) => prev.filter((p) => !ids.has(p.id)));
+    await Promise.all(docs.map((d) => deleteDoc(doc(db, 'pokes', d.id)).catch(() => {})));
+  };
+
+  // Reply to everyone who poked me, confirm to the responder, then clear their pokes
+  const handleRespond = async (incoming) => {
+    const pokerUids = [...new Set(incoming.map((p) => p.fromUid))];
+    try {
+      await Promise.all(pokerUids.map((uid) => addDoc(collection(db, 'pokes'), {
+        fromUid: user.uid,
+        fromName: profile?.name || '',
+        toUid: uid,
+        type: 'response',
+        createdAt: new Date(),
+      })));
+      Alert.alert(t('responseSentTitle'), t('responseMessage'));
+      await dismissDocs(incoming);
+    } catch (e) {
+      Alert.alert(t('respond'), t('pokeFailed'));
+    }
+  };
+
   const statusLabel = (checkin, targetDate) => {
     const s = resolveStatus(checkin);
     if (s === 'early') return t('statusEarly');
@@ -196,6 +255,17 @@ export default function HomeScreen() {
   };
 
   const prevPeriod = previousSleepPeriodDate();
+
+  // Split received items into pokes (nudges) and responses (replies),
+  // each deduped to distinct senders.
+  const incomingPokes = pokes.filter((p) => p.type !== 'response');
+  const incomingResponses = pokes.filter((p) => p.type === 'response');
+  const distinctNames = (arr) => [
+    ...new Map(arr.map((p) => [p.fromUid, p.fromName || ''])).values(),
+  ].filter(Boolean);
+  const pokerNames = distinctNames(incomingPokes);
+  const responderNames = distinctNames(incomingResponses);
+  const nameSep = lang === 'zh' ? '、' : ', ';
 
   if (loading) {
     return (
@@ -219,6 +289,45 @@ export default function HomeScreen() {
         </View>
         <LanguageToggle />
       </View>
+
+      {/* Pokes received — friends nudging me to sleep */}
+      {incomingPokes.length > 0 && (
+        <View style={styles.pokeBanner}>
+          <View style={styles.pokeBannerHead}>
+            <Text style={styles.pokeBannerTitle}>
+              👉 {pokerNames.join(nameSep)} {t('pokedYou')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => dismissDocs(incomingPokes)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.pokeBannerClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.pokeBannerMsg}>{t('pokeMessage')}</Text>
+          <TouchableOpacity style={styles.respondBtn} onPress={() => handleRespond(incomingPokes)}>
+            <Text style={styles.respondBtnText}>{t('responseMessage')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Responses received — replies to pokes I sent */}
+      {incomingResponses.length > 0 && (
+        <View style={[styles.pokeBanner, styles.responseBanner]}>
+          <View style={styles.pokeBannerHead}>
+            <Text style={styles.pokeBannerTitle}>
+              💬 {responderNames.join(nameSep)} {t('repliedYou')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => dismissDocs(incomingResponses)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.pokeBannerClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.pokeBannerMsg}>{t('responseMessage')}</Text>
+        </View>
+      )}
 
       {/* Tonight's check-in card */}
       <View style={styles.card}>
@@ -282,9 +391,23 @@ export default function HomeScreen() {
                 <Text style={styles.friendTime}>{t('sleptAt')}: {formatTime(f.checkin.timestamp)}</Text>
               )}
             </View>
-            <Text style={[styles.friendStatus, { color: statusColor(f.checkin) }]}>
-              {statusLabel(f.checkin, todayDate)}
-            </Text>
+            <View style={styles.friendRight}>
+              <Text style={[styles.friendStatus, { color: statusColor(f.checkin) }]}>
+                {statusLabel(f.checkin, todayDate)}
+              </Text>
+              {!resolveStatus(f.checkin) && (
+                <TouchableOpacity
+                  style={styles.pokeBtn}
+                  onPress={() => handlePoke(f)}
+                  disabled={pokeBusy === f.uid}
+                >
+                  {pokeBusy === f.uid
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.pokeBtnText}>👉 {t('poke')}</Text>
+                  }
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         ))
       )}
@@ -377,5 +500,37 @@ const styles = StyleSheet.create({
   friendInfo: { flex: 1 },
   friendName: { color: '#e0e0ff', fontWeight: '600', fontSize: 15 },
   friendTime: { color: '#64748b', fontSize: 12, marginTop: 2 },
-  friendStatus: { fontSize: 13, fontWeight: '700', marginLeft: 8 },
+  friendRight: { alignItems: 'flex-end', marginLeft: 8 },
+  friendStatus: { fontSize: 13, fontWeight: '700' },
+  pokeBtn: {
+    backgroundColor: '#6c63ff',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginTop: 7,
+  },
+  pokeBtnDone: { backgroundColor: '#2a2a4a' },
+  pokeBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  pokeBanner: {
+    backgroundColor: '#241f45',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#6c63ff',
+  },
+  responseBanner: { backgroundColor: '#1c2940', borderColor: '#4ade80' },
+  pokeBannerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  pokeBannerTitle: { flex: 1, color: '#e0e0ff', fontWeight: '700', fontSize: 15 },
+  pokeBannerClose: { color: '#9d94ff', fontSize: 16, fontWeight: '700', paddingLeft: 10 },
+  pokeBannerMsg: { color: '#9d94ff', fontSize: 14, marginTop: 4, lineHeight: 20 },
+  respondBtn: {
+    backgroundColor: '#6c63ff',
+    borderRadius: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    marginTop: 14,
+    alignItems: 'center',
+  },
+  respondBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

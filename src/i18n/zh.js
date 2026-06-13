@@ -40,6 +40,18 @@ export default {
   cancelCheckInConfirm: '确认撤销',
   cancelCheckInDismiss: '算了',
   cancelCheckInFailed: '撤销失败，请重试',
+  poke: '戳一下',
+  poked: '已戳 ✓',
+  pokedYou: '戳了你一下',
+  pokeMessage: '嘿 咋还不睡 我看看谁在熬夜？👀',
+  pokeDismiss: '好啦好啦 这就睡 😴',
+  pokeFailed: '发送失败，请重试',
+  pokeSentTitle: '已戳',
+  respond: '回应',
+  dismiss: '关闭',
+  repliedYou: '回应了你',
+  responseMessage: '好啦好啦，这就去睡！😴',
+  responseSentTitle: '回应已发送！💬',
 
   // Friends
   friends: '好友',

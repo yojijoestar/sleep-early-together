@@ -40,6 +40,18 @@ export default {
   cancelCheckInConfirm: 'Yes, cancel',
   cancelCheckInDismiss: 'Never mind',
   cancelCheckInFailed: 'Could not cancel. Please try again.',
+  poke: 'Poke',
+  poked: 'Poked ✓',
+  pokedYou: 'poked you',
+  pokeMessage: "Hey! You haven't slept yet? What's going on? 👀",
+  pokeDismiss: 'Okay okay 😴',
+  pokeFailed: 'Could not send poke. Please try again.',
+  pokeSentTitle: 'Poke sent to',
+  respond: 'Respond',
+  dismiss: 'Dismiss',
+  repliedYou: 'replied',
+  responseMessage: "Okay okay, going to sleep now! 😴",
+  responseSentTitle: 'Reply sent! 💬',
 
   // Friends
   friends: 'Friends',

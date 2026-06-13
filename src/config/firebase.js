@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -17,4 +17,9 @@ const app = initializeApp(firebaseConfig);
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(ReactNativeAsyncStorage),
 });
-export const db = getFirestore(app);
+// Force long-polling: the default WebChannel streaming transport is unreliable
+// in React Native, which makes one-shot reads work but onSnapshot live updates
+// silently never arrive. Long-polling fixes real-time listeners.
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});

@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Share, RefreshControl, Alert,
 } from 'react-native';
 import {
-  collection, query, where, getDocs, doc, getDoc,
+  collection, query, where, getDocs, doc, getDoc, onSnapshot,
   updateDoc, arrayUnion, arrayRemove, addDoc, deleteDoc,
 } from 'firebase/firestore';
 import * as Linking from 'expo-linking';
@@ -15,7 +15,7 @@ import { useLang } from '../context/LanguageContext';
 import LanguageToggle from '../components/LanguageToggle';
 
 export default function FriendsScreen() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile } = useAuth();
   const { t } = useLang();
   const insets = useSafeAreaInsets();
 
@@ -29,53 +29,56 @@ export default function FriendsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(async () => {
-    if (!user || !profile) return;
-
-    // Incoming requests: docs in friendRequests where toUid === me and status === 'pending'
+  // Incoming friend requests (live) — appear/disappear in real time
+  useEffect(() => {
+    if (!user) return;
     const reqQ = query(
       collection(db, 'friendRequests'),
       where('toUid', '==', user.uid),
       where('status', '==', 'pending')
     );
-    const reqSnap = await getDocs(reqQ);
-    const reqData = await Promise.all(
-      reqSnap.docs.map(async (d) => {
-        const fromSnap = await getDoc(doc(db, 'users', d.data().fromUid));
-        return {
-          requestId: d.id,
-          fromUid: d.data().fromUid,
-          name: fromSnap.exists() ? fromSnap.data().name : d.data().fromUid,
-          email: fromSnap.exists() ? fromSnap.data().email : '',
-        };
-      })
-    );
-    setRequests(reqData);
-
-    // Friends list
-    if (profile.friends?.length > 0) {
-      const friendDocs = await Promise.all(
-        profile.friends.map((fid) => getDoc(doc(db, 'users', fid)))
+    const unsub = onSnapshot(reqQ, async (snap) => {
+      const reqData = await Promise.all(
+        snap.docs.map(async (d) => {
+          const fromSnap = await getDoc(doc(db, 'users', d.data().fromUid));
+          return {
+            requestId: d.id,
+            fromUid: d.data().fromUid,
+            name: fromSnap.exists() ? fromSnap.data().name : d.data().fromUid,
+            email: fromSnap.exists() ? fromSnap.data().email : '',
+          };
+        })
       );
-      setFriends(
-        friendDocs
-          .filter((d) => d.exists())
-          .map((d) => ({ uid: d.id, ...d.data() }))
-      );
-    } else {
-      setFriends([]);
-    }
+      setRequests(reqData);
+    }, () => setRequests([]));
+    return unsub;
+  }, [user]);
 
-    setLoading(false);
+  // Friends list — reloads whenever my (live) friends array changes,
+  // so a newly accepted friend shows up immediately.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user || !profile) return;
+      if (profile.friends?.length > 0) {
+        const friendDocs = await Promise.all(
+          profile.friends.map((fid) => getDoc(doc(db, 'users', fid)))
+        );
+        if (!cancelled) {
+          setFriends(friendDocs.filter((d) => d.exists()).map((d) => ({ uid: d.id, ...d.data() })));
+        }
+      } else if (!cancelled) {
+        setFriends([]);
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, [user, profile]);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const onRefresh = async () => {
+  // Data is live; pull-to-refresh just gives a brief spinner.
+  const onRefresh = () => {
     setRefreshing(true);
-    await refreshProfile();
-    await loadData();
-    setRefreshing(false);
+    setTimeout(() => setRefreshing(false), 500);
   };
 
   const handleSearch = async () => {
@@ -128,13 +131,15 @@ export default function FriendsScreen() {
   };
 
   const handleAccept = async (req) => {
-    // Add each other as friends
-    await updateDoc(doc(db, 'users', user.uid), { friends: arrayUnion(req.fromUid) });
-    await updateDoc(doc(db, 'users', req.fromUid), { friends: arrayUnion(user.uid) });
-    // Delete the request
-    await deleteDoc(doc(db, 'friendRequests', req.requestId));
-    await refreshProfile();
-    await loadData();
+    try {
+      // Add each other as friends
+      await updateDoc(doc(db, 'users', user.uid), { friends: arrayUnion(req.fromUid) });
+      await updateDoc(doc(db, 'users', req.fromUid), { friends: arrayUnion(user.uid) });
+      // Delete the request — live listeners update both lists automatically
+      await deleteDoc(doc(db, 'friendRequests', req.requestId));
+    } catch (e) {
+      Alert.alert(t('friends'), t('authError'));
+    }
   };
 
   const handleDecline = async (req) => {
