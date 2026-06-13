@@ -78,3 +78,6 @@ dist/
 *-firebase-adminsdk-*.json
 fcm-*.json
 service-account*.json
+
+# google-services.json — provided via EAS file secret, not committed
+google-services.json
